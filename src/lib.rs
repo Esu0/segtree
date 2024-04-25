@@ -25,14 +25,14 @@ impl<T: Query> SegTree<T> {
     }
 
     unsafe fn from_write_fn(half_len: usize, f: impl FnOnce(*mut T) -> usize) -> Self {
-        Self {tree:Box::from_raw(Self::make_tree_ptr(half_len, f))}
+        Self {
+            tree: Box::from_raw(Self::make_tree_ptr(half_len, f)),
+        }
     }
     pub fn new(data: &[T]) -> Self {
         let orig_len = data.len();
         if orig_len == 0 {
-            return Self {
-                tree: Box::new([]),
-            };
+            return Self { tree: Box::new([]) };
         }
         let half_len = orig_len.next_power_of_two();
         unsafe {
@@ -47,7 +47,8 @@ impl<T: Query> SegTree<T> {
 
     unsafe fn eval(ptr: *mut T, half_len: usize) {
         for i in (0..(half_len - 1)).rev() {
-            ptr.add(i).write((*ptr.add(i * 2 + 1)).query(&*ptr.add(i * 2 + 2)));
+            ptr.add(i)
+                .write((*ptr.add(i * 2 + 1)).query(&*ptr.add(i * 2 + 2)));
         }
     }
 }
@@ -57,9 +58,7 @@ impl<I: Query> FromIterator<I> for SegTree<I> {
         let iter = iter.into_iter();
         let (size_min, size_max) = iter.size_hint();
         if size_max == Some(0) {
-            Self {
-                tree: Box::new([]),
-            }
+            Self { tree: Box::new([]) }
         } else {
             assert_ne!(size_min, 0);
             let half_len_min = size_min.next_power_of_two();
@@ -86,7 +85,11 @@ impl<I: Query> FromIterator<I> for SegTree<I> {
                         std::mem::forget(data);
                         data_ptr.copy_from_nonoverlapping(src, orig_len);
                         // `I`のデストラクタは呼ばずにメモリの解放のみ行う
-                        drop(Vec::from_raw_parts(src as *mut MaybeUninit<I>, orig_len, cap));
+                        drop(Vec::from_raw_parts(
+                            src as *mut MaybeUninit<I>,
+                            orig_len,
+                            cap,
+                        ));
                         orig_len
                     })
                 }
@@ -107,16 +110,16 @@ macro_rules! has_ident_num_impl {
     };
 }
 
-has_ident_num_impl!{u8}
-has_ident_num_impl!{u16}
-has_ident_num_impl!{u32}
-has_ident_num_impl!{u64}
-has_ident_num_impl!{u128}
-has_ident_num_impl!{i8}
-has_ident_num_impl!{i16}
-has_ident_num_impl!{i32}
-has_ident_num_impl!{i64}
-has_ident_num_impl!{i128}
+has_ident_num_impl! {u8}
+has_ident_num_impl! {u16}
+has_ident_num_impl! {u32}
+has_ident_num_impl! {u64}
+has_ident_num_impl! {u128}
+has_ident_num_impl! {i8}
+has_ident_num_impl! {i16}
+has_ident_num_impl! {i32}
+has_ident_num_impl! {i64}
+has_ident_num_impl! {i128}
 
 trait HasMin {
     const MIN: Self;
@@ -130,16 +133,16 @@ macro_rules! has_min_num_impl {
     };
 }
 
-has_min_num_impl!{u8}
-has_min_num_impl!{u16}
-has_min_num_impl!{u32}
-has_min_num_impl!{u64}
-has_min_num_impl!{u128}
-has_min_num_impl!{i8}
-has_min_num_impl!{i16}
-has_min_num_impl!{i32}
-has_min_num_impl!{i64}
-has_min_num_impl!{i128}
+has_min_num_impl! {u8}
+has_min_num_impl! {u16}
+has_min_num_impl! {u32}
+has_min_num_impl! {u64}
+has_min_num_impl! {u128}
+has_min_num_impl! {i8}
+has_min_num_impl! {i16}
+has_min_num_impl! {i32}
+has_min_num_impl! {i64}
+has_min_num_impl! {i128}
 
 trait HasMax {
     const MAX: Self;
@@ -153,16 +156,16 @@ macro_rules! has_max_num_impl {
     };
 }
 
-has_max_num_impl!{u8}
-has_max_num_impl!{u16}
-has_max_num_impl!{u32}
-has_max_num_impl!{u64}
-has_max_num_impl!{u128}
-has_max_num_impl!{i8}
-has_max_num_impl!{i16}
-has_max_num_impl!{i32}
-has_max_num_impl!{i64}
-has_max_num_impl!{i128}
+has_max_num_impl! {u8}
+has_max_num_impl! {u16}
+has_max_num_impl! {u32}
+has_max_num_impl! {u64}
+has_max_num_impl! {u128}
+has_max_num_impl! {i8}
+has_max_num_impl! {i16}
+has_max_num_impl! {i32}
+has_max_num_impl! {i64}
+has_max_num_impl! {i128}
 
 impl<T: HasMax> HasMin for Reverse<T> {
     const MIN: Self = Self(<T as HasMax>::MAX);
@@ -185,9 +188,7 @@ impl<T> SumQuery<T> {
     pub fn slice_from(slice: &[T]) -> &[Self] {
         let data = slice.as_ptr();
         let len = slice.len();
-        unsafe {
-            slice::from_raw_parts(data as _, len)
-        }
+        unsafe { slice::from_raw_parts(data as _, len) }
     }
 }
 
@@ -206,9 +207,7 @@ impl<T> MaxQuery<T> {
     pub fn slice_from(slice: &[T]) -> &[Self] {
         let data = slice.as_ptr();
         let len = slice.len();
-        unsafe {
-            slice::from_raw_parts(data as _, len)
-        }
+        unsafe { slice::from_raw_parts(data as _, len) }
     }
 }
 
@@ -227,9 +226,7 @@ impl<T> MinQuery<T> {
     pub fn slice_from(slice: &[T]) -> &[Self] {
         let data = slice.as_ptr();
         let len = slice.len();
-        unsafe {
-            slice::from_raw_parts(data as _, len)
-        }
+        unsafe { slice::from_raw_parts(data as _, len) }
     }
 }
 
@@ -252,7 +249,10 @@ mod tests {
 
     #[test]
     fn from_iter_test() {
-        let segtree = [100, 200, 15, 40].into_iter().map(SumQuery).collect::<SegTree<_>>();
+        let segtree = [100, 200, 15, 40]
+            .into_iter()
+            .map(SumQuery)
+            .collect::<SegTree<_>>();
         println!("{segtree:#?}");
     }
 }
