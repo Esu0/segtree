@@ -62,7 +62,6 @@ fn get_random_data(n: usize) -> Vec<i64> {
 fn bench_segtree(c: &mut Criterion) {
     let n = 100000;
 
-
     c.bench_function("segtree-query", |b| {
         let mut seg = get_segtree(n);
         let ranges = get_random_range(n, 200000);

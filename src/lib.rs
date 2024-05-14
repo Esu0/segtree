@@ -110,26 +110,8 @@ impl<T: Query> SegTree<T> {
     /// 指定区間のクエリをO(log(n))で求める。
     pub fn query(&self, range: impl RangeBounds<usize>) -> T {
         let (l, r) = self.get_lr(range);
-
-        self.query_rec(l, r, 0, self.len(), 1)
-            .into_owned(|v| v.query(&T::IDENT))
-    }
-
-    fn query_rec(&self, a: usize, b: usize, l: usize, r: usize, i: usize) -> Cow<'_, T> {
-        if b <= l || r <= a {
-            Cow::Owned(T::IDENT)
-        } else if a <= l && r <= b {
-            Cow::Borrowed(&self.tree[i])
-        } else {
-            let mid = (l + r) / 2;
-            Cow::Owned(self.query_rec(a, b, l, mid, i * 2).query(&self.query_rec(
-                a,
-                b,
-                mid,
-                r,
-                i * 2 + 1,
-            )))
-        }
+        // TODO: 非再帰で再実装
+        todo!()
     }
 
     /// 指定位置の要素をO(log(n))で更新する。
