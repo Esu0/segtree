@@ -39,16 +39,16 @@ impl<T> Cow<'_, T> {
 impl<T: Query> SegTree<T> {
     /// half_len != 0
     unsafe fn make_tree_ptr(half_len: usize, f: impl FnOnce(*mut T) -> usize) -> *mut [T] {
-        let len = half_len * 2 - 1;
+        let len = half_len * 2;
         let ptr = std::alloc::alloc(Layout::array::<T>(len).unwrap()) as *mut T;
         {
-            let data_ptr = ptr.add(half_len - 1);
+            let data_ptr = ptr.add(half_len);
             let orig_len = f(data_ptr);
             for i in orig_len..half_len {
                 data_ptr.add(i).write(T::IDENT);
             }
         }
-
+        ptr.write(T::IDENT);
         Self::eval(ptr, half_len);
 
         std::ptr::slice_from_raw_parts_mut(ptr, len)
@@ -78,7 +78,7 @@ impl<T: Query> SegTree<T> {
     }
 
     pub fn len(&self) -> usize {
-        self.tree.len() / 2 + 1
+        self.tree.len() / 2
     }
 
     pub fn is_empty(&self) -> bool {
@@ -86,14 +86,14 @@ impl<T: Query> SegTree<T> {
     }
 
     unsafe fn eval(ptr: *mut T, half_len: usize) {
-        for i in (0..(half_len - 1)).rev() {
+        for i in (1..half_len).rev() {
             ptr.add(i)
-                .write((*ptr.add(i * 2 + 1)).query(&*ptr.add(i * 2 + 2)));
+                .write((*ptr.add(i * 2)).query(&*ptr.add(i * 2 + 1)));
         }
     }
 
     fn get_lr(&self, range: impl RangeBounds<usize>) -> (usize, usize) {
-        let size = self.tree.len() / 2 + 1;
+        let size = self.len();
         let l = match range.start_bound() {
             Bound::Excluded(s) => *s + 1,
             Bound::Included(s) => *s,
@@ -111,7 +111,7 @@ impl<T: Query> SegTree<T> {
     pub fn query(&self, range: impl RangeBounds<usize>) -> T {
         let (l, r) = self.get_lr(range);
 
-        self.query_rec(l, r, 0, self.tree.len() / 2 + 1, 0)
+        self.query_rec(l, r, 0, self.len(), 1)
             .into_owned(|v| v.query(&T::IDENT))
     }
 
@@ -122,33 +122,30 @@ impl<T: Query> SegTree<T> {
             Cow::Borrowed(&self.tree[i])
         } else {
             let mid = (l + r) / 2;
-            Cow::Owned(
-                self.query_rec(a, b, l, mid, i * 2 + 1)
-                    .query(&self.query_rec(a, b, mid, r, i * 2 + 2)),
-            )
+            Cow::Owned(self.query_rec(a, b, l, mid, i * 2).query(&self.query_rec(
+                a,
+                b,
+                mid,
+                r,
+                i * 2 + 1,
+            )))
         }
     }
 
     /// 指定位置の要素をO(log(n))で更新する。
-    pub fn update(&mut self, i: usize, val: T)
-    where
-        T: Clone,
-    {
-        self.update_rec(i, 0, self.tree.len() / 2 + 1, 0, val);
+    pub fn update(&mut self, i: usize, val: T) {
+        self.update_rec(i, 0, self.len(), 1, val);
     }
 
-    fn update_rec(&mut self, i: usize, l: usize, r: usize, j: usize, val: T) -> Option<T>
-    where
-        T: Clone,
-    {
+    fn update_rec(&mut self, i: usize, l: usize, r: usize, j: usize, val: T) -> Option<T> {
         if i < l || r <= i {
             Some(val)
         } else if l + 1 == r {
-            self.tree[j] = val.clone();
+            self.tree[j] = val;
             None
         } else {
             let mid = (l + r) / 2;
-            let ch1 = 2 * j + 1;
+            let ch1 = 2 * j;
             let ch2 = ch1 + 1;
             if let Some(val) = self.update_rec(i, l, mid, ch1, val) {
                 self.update_rec(i, mid, r, ch2, val);
@@ -163,7 +160,7 @@ impl<T: Query> SegTree<T> {
     where
         P: FnMut(&T) -> bool,
     {
-        self.partition_point_rec(l, 0, self.tree.len() / 2 + 1, 0, &mut pred)
+        self.partition_point_rec(l, 0, self.len(), 1, &mut pred)
     }
 
     fn partition_point_rec<P>(&self, a: usize, l: usize, r: usize, i: usize, pred: &mut P) -> usize
@@ -181,7 +178,7 @@ impl<T: Query> SegTree<T> {
             l
         } else {
             let mid = (l + r) / 2;
-            let ch1 = 2 * i + 1;
+            let ch1 = 2 * i;
             let ch2 = ch1 + 1;
             let result = self.partition_point_rec(a, l, mid, ch1, pred);
             if result == mid {
@@ -529,5 +526,9 @@ mod tests {
         segtree.update(0, MinQuery(5));
         assert_eq!(segtree.upper_bound(&4), 2);
         assert_eq!(segtree.upper_bound(&5), 0);
+
+        assert_eq!(segtree.partition_point(7, |v| v.0 > 5), 8);
+        segtree.update(7, MinQuery(3));
+        assert_eq!(segtree.partition_point(7, |v| v.0 > 5), 7);
     }
 }
