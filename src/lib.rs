@@ -1,9 +1,9 @@
 use std::{
     alloc::Layout,
     borrow::Borrow,
-    cmp::Reverse,
+    cmp::{Ordering, Reverse},
     mem::MaybeUninit,
-    ops::{Add, Bound, RangeBounds},
+    ops::{Add, Bound, Mul, RangeBounds},
     slice,
 };
 
@@ -125,24 +125,11 @@ impl<T: Query> SegTree<T> {
 
     /// 指定位置の要素をO(log(n))で更新する。
     pub fn update(&mut self, i: usize, val: T) {
-        self.update_rec(i, 0, self.len(), 1, val);
-    }
-
-    fn update_rec(&mut self, i: usize, l: usize, r: usize, j: usize, val: T) -> Option<T> {
-        if i < l || r <= i {
-            Some(val)
-        } else if l + 1 == r {
-            self.tree[j] = val;
-            None
-        } else {
-            let mid = (l + r) / 2;
-            let ch1 = 2 * j;
-            let ch2 = ch1 + 1;
-            if let Some(val) = self.update_rec(i, l, mid, ch1, val) {
-                self.update_rec(i, mid, r, ch2, val);
-            }
-            self.tree[j] = self.tree[ch1].query(&self.tree[ch2]);
-            None
+        let mut i = i.checked_add(self.len()).unwrap_or_else(|| panic!("attempt to index slice maximum usize"));
+        self.tree[i] = val;
+        while i > 1 {
+            i >>= 1;
+            self.tree[i] = self.tree[i * 2].query(&self.tree[i * 2 + 1]);
         }
     }
 
@@ -151,31 +138,40 @@ impl<T: Query> SegTree<T> {
     where
         P: FnMut(&T) -> bool,
     {
-        self.partition_point_rec(l, 0, self.len(), 1, &mut pred)
-    }
-
-    fn partition_point_rec<P>(&self, a: usize, l: usize, r: usize, i: usize, pred: &mut P) -> usize
-    where
-        P: FnMut(&T) -> bool,
-    {
-        if r <= a {
-            // 探索範囲の左側
-            r
-        } else if a <= l && pred(&self.tree[i]) {
-            // 現在の探索範囲がすべてaより右であり、全範囲のクエリが条件`pred`を満たす
-            r
-        } else if r - l == 1 {
-            // 探索範囲内でかつ条件`pred`を満たさない葉ノード
-            l
-        } else {
-            let mid = (l + r) / 2;
-            let ch1 = 2 * i;
-            let ch2 = ch1 + 1;
-            let result = self.partition_point_rec(a, l, mid, ch1, pred);
-            if result == mid {
-                self.partition_point_rec(a, mid, r, ch2, pred)
-            } else {
-                result
+        match l.cmp(&self.len()) {
+            Ordering::Equal => return l,
+            Ordering::Greater => panic!("index {l} out of range for slice of length {}", self.len()),
+            _ => {}
+        }
+        let mut l = l.checked_add(self.len()).unwrap_or_else(|| panic!("attempt to index maximum usize"));
+        let mut l_query = T::IDENT;
+        loop {
+            if l & 1 == 1 {
+                let next_query = l_query.query(&self.tree[l]);
+                let next_l = l + 1;
+                if pred(&next_query) {
+                    if next_l.is_power_of_two() {
+                        return self.len();
+                    } else {
+                        l_query = next_query;
+                    }
+                } else {
+                    break;
+                }
+                l = next_l;
+            }
+            l >>= 1;
+        }
+        loop {
+            let next_l = l << 1;
+            let Some(val) = self.tree.get(next_l) else {
+                return l - self.len();
+            };
+            l = next_l;
+            let next_query = l_query.query(val);
+            if pred(&next_query) {
+                l_query = next_query;
+                l += 1;
             }
         }
     }
@@ -288,7 +284,11 @@ trait HasAddIdent {
     const IDENT: Self;
 }
 
-macro_rules! has_ident_num_impl {
+trait HasMulIdent {
+    const IDENT: Self;
+}
+
+macro_rules! has_add_ident_num_impl {
     ($t:ty) => {
         impl HasAddIdent for $t {
             const IDENT: Self = 0;
@@ -296,16 +296,35 @@ macro_rules! has_ident_num_impl {
     };
 }
 
-has_ident_num_impl! {u8}
-has_ident_num_impl! {u16}
-has_ident_num_impl! {u32}
-has_ident_num_impl! {u64}
-has_ident_num_impl! {u128}
-has_ident_num_impl! {i8}
-has_ident_num_impl! {i16}
-has_ident_num_impl! {i32}
-has_ident_num_impl! {i64}
-has_ident_num_impl! {i128}
+macro_rules! has_mul_ident_num_impl {
+    ($t:ty) => {
+        impl HasMulIdent for $t {
+            const IDENT: Self = 1;
+        }
+    }
+}
+
+has_add_ident_num_impl! {u8}
+has_add_ident_num_impl! {u16}
+has_add_ident_num_impl! {u32}
+has_add_ident_num_impl! {u64}
+has_add_ident_num_impl! {u128}
+has_add_ident_num_impl! {i8}
+has_add_ident_num_impl! {i16}
+has_add_ident_num_impl! {i32}
+has_add_ident_num_impl! {i64}
+has_add_ident_num_impl! {i128}
+
+has_mul_ident_num_impl! {u8}
+has_mul_ident_num_impl! {u16}
+has_mul_ident_num_impl! {u32}
+has_mul_ident_num_impl! {u64}
+has_mul_ident_num_impl! {u128}
+has_mul_ident_num_impl! {i8}
+has_mul_ident_num_impl! {i16}
+has_mul_ident_num_impl! {i32}
+has_mul_ident_num_impl! {i64}
+has_mul_ident_num_impl! {i128}
 
 trait HasMin {
     const MIN: Self;
@@ -382,6 +401,25 @@ impl<T: Add<Output = T> + Clone + HasAddIdent> Query for SumQuery<T> {
     const IDENT: Self = Self(<T as HasAddIdent>::IDENT);
     fn query(&self, other: &Self) -> Self {
         Self(self.0.clone() + other.0.clone())
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProdQuery<T>(pub T);
+
+impl<T> ProdQuery<T> {
+    pub fn slice_from(slice: &[T]) -> &[Self] {
+        let data = slice.as_ptr();
+        let len = slice.len();
+        unsafe { slice::from_raw_parts(data as _, len) }
+    }
+}
+
+impl<T: Mul<Output = T> + Clone + HasMulIdent> Query for ProdQuery<T> {
+    const IDENT: Self = Self(<T as HasMulIdent>::IDENT);
+    fn query(&self, other: &Self) -> Self {
+        Self(self.0.clone() * other.0.clone())
     }
 }
 
@@ -601,5 +639,13 @@ mod tests {
         assert_eq!(segtree.partition_point(1, |v| v.0 <= 20), 5);
         assert_eq!(segtree.partition_point(4, |v| v.0 <= 25), 6);
         assert_eq!(segtree.partition_point(3, |v| v.0 <= 100), 8);
+        assert_eq!(segtree.partition_point(8, |v| v.0 <= 20), 8);
+    }
+
+    #[test]
+    #[should_panic]
+    fn partition_point_panic() {
+        let segtree = [3u32, 5, 2, 1, 9, 11, 15, 3].into_iter().map(SumQuery).collect::<SegTree<_>>();
+        segtree.partition_point(9, |v| v.0 <= 20);
     }
 }
