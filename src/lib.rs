@@ -3,37 +3,13 @@ use std::{
     borrow::Borrow,
     cmp::Reverse,
     mem::MaybeUninit,
-    ops::{Add, Bound, Deref, RangeBounds},
+    ops::{Add, Bound, RangeBounds},
     slice,
 };
 
 #[derive(Clone, Debug)]
 pub struct SegTree<T> {
     tree: Box<[T]>,
-}
-
-enum Cow<'a, T> {
-    Owned(T),
-    Borrowed(&'a T),
-}
-
-impl<T> Deref for Cow<'_, T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Owned(value) => value,
-            Self::Borrowed(value) => value,
-        }
-    }
-}
-
-impl<T> Cow<'_, T> {
-    fn into_owned(self, f: impl FnOnce(&T) -> T) -> T {
-        match self {
-            Self::Owned(value) => value,
-            Self::Borrowed(value_ref) => f(value_ref),
-        }
-    }
 }
 
 impl<T: Query> SegTree<T> {
@@ -109,9 +85,35 @@ impl<T: Query> SegTree<T> {
 
     /// 指定区間のクエリをO(log(n))で求める。
     pub fn query(&self, range: impl RangeBounds<usize>) -> T {
-        let (l, r) = self.get_lr(range);
-        // TODO: 非再帰で再実装
-        todo!()
+        let (mut l, mut r) = self.get_lr(range);
+        if r == l {
+            return T::IDENT;
+        }
+        l += self.len();
+        r += self.len();
+        let mut l_query = T::IDENT;
+        let mut r_query = T::IDENT;
+
+        while r - l > 2 {
+            if l & 1 == 1 {
+                l_query = l_query.query(&self.tree[l]);
+                l += 1;
+            }
+            if r & 1 == 1 {
+                r -= 1;
+                r_query = self.tree[r].query(&r_query);
+            }
+            l >>= 1;
+            r >>= 1;
+        }
+        if r - l == 2 {
+            l_query
+                .query(&self.tree[l])
+                .query(&self.tree[l + 1])
+                .query(&r_query)
+        } else {
+            l_query.query(&self.tree[l]).query(&r_query)
+        }
     }
 
     /// 指定位置の要素をO(log(n))で更新する。
@@ -434,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn query_test() {
+    fn sum_query_test() {
         let segtree = [-4, 6, -3, 2, 1, 1, 7]
             .into_iter()
             .map(SumQuery)
@@ -443,7 +445,36 @@ mod tests {
         assert_eq!(segtree.query(..).0, 10);
         assert_eq!(segtree.query(3..).0, 11);
         assert_eq!(segtree.query(3..6).0, 4);
-        assert_eq!(segtree.query(..3).0, -1)
+        assert_eq!(segtree.query(..3).0, -1);
+
+        assert_eq!(segtree.query(0..1).0, -4);
+        assert_eq!(segtree.query(0..=0).0, -4);
+        assert_eq!(segtree.query(0..=1).0, 2);
+        assert_eq!(segtree.query(0..0).0, 0);
+        assert_eq!(segtree.query(1..1).0, 0);
+        assert_eq!(segtree.query(7..7).0, 0);
+        assert_eq!(segtree.query(6..8).0, 7);
+    }
+
+    #[test]
+    fn min_query_test() {
+        let segtree = [23i32, 12, -3, 0, 3, -2, 7, 8]
+            .into_iter()
+            .map(MinQuery)
+            .collect::<SegTree<_>>();
+
+        assert_eq!(segtree.query(..).0, -3);
+        assert_eq!(segtree.query(3..).0, -2);
+        assert_eq!(segtree.query(..2).0, 12);
+        assert_eq!(segtree.query(3..5).0, 0);
+
+        assert_eq!(segtree.query(0..1).0, 23);
+        assert_eq!(segtree.query(0..=0).0, 23);
+        assert_eq!(segtree.query(0..=1).0, 12);
+        assert_eq!(segtree.query(0..0).0, i32::MAX);
+        assert_eq!(segtree.query(1..1).0, i32::MAX);
+        assert_eq!(segtree.query(7..7).0, i32::MAX);
+        assert_eq!(segtree.query(7..8).0, 8);
     }
 
     #[test]
