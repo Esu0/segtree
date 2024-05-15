@@ -592,4 +592,14 @@ mod tests {
         segtree.update(7, MinQuery(3));
         assert_eq!(segtree.partition_point(7, |v| v.0 > 5), 7);
     }
+
+    #[test]
+    fn partition_point_test() {
+        let segtree = [3u32, 5, 2, 1, 9, 11, 15, 3].into_iter().map(SumQuery).collect::<SegTree<_>>();
+
+        assert_eq!(segtree.partition_point(0, |v| v.0 <= 20), 5);
+        assert_eq!(segtree.partition_point(1, |v| v.0 <= 20), 5);
+        assert_eq!(segtree.partition_point(4, |v| v.0 <= 25), 6);
+        assert_eq!(segtree.partition_point(3, |v| v.0 <= 100), 8);
+    }
 }
