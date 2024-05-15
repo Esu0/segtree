@@ -68,18 +68,26 @@ impl<T: Query> SegTree<T> {
         }
     }
 
+    /// 戻り値を`(l, r)`とすると以下が保証される。
+    /// 
+    /// * `l <= r <= self.len()`
     fn get_lr(&self, range: impl RangeBounds<usize>) -> (usize, usize) {
         let size = self.len();
         let l = match range.start_bound() {
-            Bound::Excluded(s) => *s + 1,
+            Bound::Excluded(s) => s.checked_add(1).unwrap_or_else(|| panic!("attempted to index slice from after maximum usize")),
             Bound::Included(s) => *s,
             Bound::Unbounded => 0,
         };
         let r = match range.end_bound() {
             Bound::Excluded(e) => *e,
-            Bound::Included(e) => *e + 1,
+            Bound::Included(e) => e.checked_add(1).unwrap_or_else(|| panic!("attempted to index slice up to maximum usize")),
             Bound::Unbounded => size,
         };
+        if l > r {
+            panic!("slice index starts at {l} but ends at {r}");
+        } else if r > size {
+            panic!("range end index {r} out of range for slice of length {size}");
+        }
         (l, r)
     }
 
@@ -93,7 +101,6 @@ impl<T: Query> SegTree<T> {
         r += self.len();
         let mut l_query = T::IDENT;
         let mut r_query = T::IDENT;
-
         while r - l > 2 {
             if l & 1 == 1 {
                 l_query = l_query.query(&self.tree[l]);
@@ -475,6 +482,47 @@ mod tests {
         assert_eq!(segtree.query(1..1).0, i32::MAX);
         assert_eq!(segtree.query(7..7).0, i32::MAX);
         assert_eq!(segtree.query(7..8).0, 8);
+    }
+
+    #[test]
+    #[should_panic]
+    fn out_of_bounds_test1() {
+        let segtree = [1, 2, 3, 4, 5, 6, 7]
+            .into_iter()
+            .map(SumQuery)
+            .collect::<SegTree<_>>();
+        segtree.query(0..9);
+    }
+
+    #[test]
+    #[should_panic]
+    fn out_of_bounds_test2() {
+        let segtree = [1, 2, 3, 4, 5, 6, 7]
+            .into_iter()
+            .map(SumQuery)
+            .collect::<SegTree<_>>();
+        segtree.query(9..);
+    }
+
+    #[test]
+    #[should_panic]
+    fn out_of_bounds_test3() {
+        let segtree = [1, 2, 3, 4, 5, 6, 7]
+            .into_iter()
+            .map(SumQuery)
+            .collect::<SegTree<_>>();
+        segtree.query(0..=8);
+    }
+
+    #[test]
+    #[should_panic]
+    #[allow(clippy::reversed_empty_ranges)]
+    fn out_of_bounds_test4() {
+        let segtree = [1, 2, 3, 4, 5, 6, 7]
+            .into_iter()
+            .map(SumQuery)
+            .collect::<SegTree<_>>();
+        segtree.query(5..4);
     }
 
     #[test]
