@@ -208,31 +208,6 @@ where
     {
         self.partition_point(0, |v| v.0.borrow() > k)
     }
-
-    // fn upper_bound_rec<Q: ?Sized>(&self, k: &Q, l: usize, r: usize, i: usize) -> usize
-    // where
-    //     T: Ord + Borrow<Q>,
-    //     Q: Ord,
-    // {
-    //     if self.tree[i].0.borrow() > k {
-    //         // このノードの子はすべてkより大きいため、探索範囲外
-    //         r
-    //     } else if r - l == 1 {
-    //         // k以下の値をもつ葉ノードであり、ここが最左位置となる
-    //         l
-    //     } else {
-    //         // このノードの子にk以下の要素が含まれるため、再帰的に探索
-    //         let mid = (l + r) / 2;
-    //         let ch1 = 2 * i + 1;
-    //         let ch2 = ch1 + 1;
-    //         let result = self.upper_bound_rec(k, l, mid, ch1);
-    //         if result == mid {
-    //             self.upper_bound_rec(k, mid, r, ch2)
-    //         } else {
-    //             result
-    //         }
-    //     }
-    // }
 }
 
 impl<I: Query> FromIterator<I> for SegTree<I> {
