@@ -79,6 +79,25 @@ where
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GcdQuery;
+
+impl<T: Rem<Output = T> + HasAddIdent + Eq + Clone> Query<T> for GcdQuery {
+    const IDENT: T = T::IDENT;
+    fn query(&self, x: &T, y: &T) -> T {
+        if x == &T::IDENT {
+            return y.clone();
+        }
+        let mut x = x.clone();
+        let mut y = y.clone();
+        while y != T::IDENT {
+            let tmp = x.clone() % y.clone();
+            x = std::mem::replace(&mut y, tmp);
+        }
+        x
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,5 +114,15 @@ mod tests {
         assert_eq!(query.query(&999, &999), 1);
         assert_eq!(query.query(&999, &2), 998);
         assert_eq!(query.query(&50, &50), 500);
+    }
+
+    #[test]
+    fn test_gcd_query() {
+        assert_eq!(GcdQuery.query(&10, &15), 5);
+        assert_eq!(GcdQuery.query(&10, &10), 10);
+        assert_eq!(GcdQuery.query(&10, &5), 5);
+        assert_eq!(GcdQuery.query(&10, &3), 1);
+        assert_eq!(GcdQuery.query(&0, &4), 4);
+        assert_eq!(GcdQuery.query(&4, &0), 4);
     }
 }
