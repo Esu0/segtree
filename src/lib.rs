@@ -398,25 +398,6 @@ impl<T: Mul<Output = T> + Clone + HasMulIdent> Query for ProdQuery<T> {
     }
 }
 
-// #[repr(transparent)]
-// #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// pub struct MaxQuery<T>(pub T);
-
-// impl<T> MaxQuery<T> {
-//     pub fn slice_from(slice: &[T]) -> &[Self] {
-//         let data = slice.as_ptr();
-//         let len = slice.len();
-//         unsafe { slice::from_raw_parts(data as _, len) }
-//     }
-// }
-
-// impl<T: Ord + Clone + HasMin> Query for MaxQuery<T> {
-//     const IDENT: Self = Self(<T as HasMin>::MIN);
-//     fn query(&self, other: &Self) -> Self {
-//         Self(std::cmp::max(self.0.clone(), other.0.clone()))
-//     }
-// }
-
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MinQuery<T>(pub T);
@@ -604,6 +585,36 @@ mod tests {
         assert_eq!(segtree.partition_point(7, |v| v.0 > 5), 8);
         segtree.update(7, MinQuery(3));
         assert_eq!(segtree.partition_point(7, |v| v.0 > 5), 7);
+    }
+
+
+    #[test]
+    fn max_query_test() {
+        let mut segtree = [23i32, 12, -3, 0, 3, -2, 7, 8]
+            .into_iter()
+            .map(Reverse)
+            .map(MinQuery)
+            .collect::<SegTree<_>>();
+        
+        assert_eq!(segtree.query(..).0.0, 23);
+        assert_eq!(segtree.query(1..).0.0, 12);
+        assert_eq!(segtree.query(2..).0.0, 8);
+        assert_eq!(segtree.query(1..6).0.0, 12);
+        assert_eq!(segtree.query(2..6).0.0, 3);
+        assert_eq!(segtree.query(2..=6).0.0, 7);
+
+        segtree.update(2, MinQuery(Reverse(5)));
+        assert_eq!(segtree.query(..).0.0, 23);
+        assert_eq!(segtree.query(2..).0.0, 8);
+        assert_eq!(segtree.query(2..6).0.0, 5);
+        assert_eq!(segtree.query(2..=6).0.0, 7);
+
+        segtree.update(0, MinQuery(Reverse(10)));
+        assert_eq!(segtree.partition_point(0, |v| v.0.0 < 12), 1);
+        assert_eq!(segtree.partition_point(0, |v| v.0.0 < 13), 8);
+        assert_eq!(segtree.partition_point(1, |v| v.0.0 < 12), 1);
+        assert_eq!(segtree.partition_point(2, |v| v.0.0 < 12), 8);
+        assert_eq!(segtree.partition_point(2, |v| v.0.0 < 7), 6);
     }
 
     #[test]
