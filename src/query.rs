@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, ops::{Add, Mul, Rem}};
+use std::{
+    cmp::Ordering,
+    ops::{Add, Mul, Rem},
+};
 
 use self::ident::{HasAddIdent, HasMax, HasMin, HasMulIdent};
 
@@ -63,7 +66,10 @@ pub struct Mod<Q, T> {
 
 impl<Q, T: Rem<Output = T>> Mod<Q, T> {
     pub fn new(query: Q, modulo: T) -> Self {
-        Self { base: query, modulo }
+        Self {
+            base: query,
+            modulo,
+        }
     }
 }
 

@@ -16,7 +16,9 @@ fn get_segtree<Q: Query<i64>>(n: usize, query: Q) -> SegTree<Q, i64> {
         let mut rng = rng.borrow_mut();
         SegTree::from_iter_query(
             query,
-            black_box(iter::repeat_with(|| rng.gen_range(-1_000_000_000i64..=1_000_000_000)).take(n)),
+            black_box(
+                iter::repeat_with(|| rng.gen_range(-1_000_000_000i64..=1_000_000_000)).take(n),
+            ),
         )
     })
 }

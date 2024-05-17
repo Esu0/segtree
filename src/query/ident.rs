@@ -1,10 +1,10 @@
 use std::cmp::Reverse;
 
-pub(super) trait HasAddIdent {
+pub(crate) trait HasAddIdent {
     const IDENT: Self;
 }
 
-pub(super) trait HasMulIdent {
+pub(crate) trait HasMulIdent {
     const IDENT: Self;
 }
 
