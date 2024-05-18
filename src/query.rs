@@ -98,6 +98,47 @@ impl<T: Rem<Output = T> + HasAddIdent + Eq + Clone> Query<T> for GcdQuery {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct PolynomialQuery<T> {
+    exponents: Vec<T>,
+}
+
+pub struct WithLeafCount<T> {
+    pub elem: T,
+    pub leaf_count: usize,
+}
+
+impl<T> WithLeafCount<T> {
+    // const fn with_element(elem: T) -> Self {
+    //     Self {
+    //         elem,
+    //         leaf_count: 1,
+    //     }
+    // }
+
+    pub const fn ident(ident: T) -> Self {
+        Self {
+            elem: ident,
+            leaf_count: 0,
+        }
+    }
+}
+
+impl<T> Query<WithLeafCount<T>> for PolynomialQuery<T>
+where
+    T: Clone + Add<Output = T> + Mul<Output = T> + HasAddIdent + HasMulIdent,
+{
+    const IDENT: WithLeafCount<T> = WithLeafCount::ident(<T as HasAddIdent>::IDENT);
+    fn query(&self, x: &WithLeafCount<T>, y: &WithLeafCount<T>) -> WithLeafCount<T> {
+        let WithLeafCount { elem: x, leaf_count: exp } = x;
+        let WithLeafCount { elem: y, leaf_count: exp2} = y;
+        WithLeafCount {
+            elem: x.clone() + y.clone() * self.exponents[*exp].clone(),
+            leaf_count: exp + exp2,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
