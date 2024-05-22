@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, ops::{Add, Mul, Rem}};
+use std::{
+    cmp::Ordering,
+    ops::{Add, Mul, Rem},
+};
 
 use self::ident::{HasAddIdent, HasMax, HasMin, HasMulIdent};
 
@@ -8,6 +11,65 @@ pub trait Query<T> {
     const IDENT: T;
     fn query(&self, x: &T, y: &T) -> T;
 }
+
+pub trait Additional<T> {
+    type Ret;
+    const IDENT: Self::Ret;
+    fn additional(&self, slice: &[T]) -> Self::Ret;
+}
+
+pub trait QueryWith<T> {
+    const IDENT: T;
+    type A: Additional<T>;
+    fn additional(&self) -> Self::A;
+    fn query_with(
+        &self,
+        x: &T,
+        y: &T,
+        additional_x: <Self::A as Additional<T>>::Ret,
+        additional_y: <Self::A as Additional<T>>::Ret,
+    ) -> (T, <Self::A as Additional<T>>::Ret);
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoAdditional;
+
+impl<T> Additional<T> for NoAdditional {
+    type Ret = ();
+    const IDENT: Self::Ret = ();
+    fn additional(&self, _: &[T]) {}
+}
+
+// impl<Q, T> QueryWith<T> for Q
+// where
+//     Q: Query<T>,
+// {
+//     const IDENT: T = Q::IDENT;
+//     type A = NoAdditional;
+//     fn query_with(&self, x: &T, y: &T, _: (), _: ()) -> (T, ()) {
+//         (self.query(x, y), ())
+//     }
+// }
+
+macro_rules! impl_query_with_where_query {
+    ($($t:ty),* $(,)?) => {
+        $(impl<T> QueryWith<T> for $t
+        where
+            $t: Query<T>,
+        {
+            const IDENT: T = <$t as Query<T>>::IDENT;
+            type A = NoAdditional;
+            fn additional(&self) -> Self::A {
+                NoAdditional
+            }
+            fn query_with(&self, x: &T, y: &T, _: (), _: ()) -> (T, ()) {
+                (self.query(x, y), ())
+            }
+        })*
+    }
+}
+
+impl_query_with_where_query!(MinQuery, MaxQuery, SumQuery, ProdQuery, GcdQuery);
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MinQuery;
@@ -63,7 +125,10 @@ pub struct Mod<Q, T> {
 
 impl<Q, T: Rem<Output = T>> Mod<Q, T> {
     pub fn new(query: Q, modulo: T) -> Self {
-        Self { base: query, modulo }
+        Self {
+            base: query,
+            modulo,
+        }
     }
 }
 
@@ -76,6 +141,20 @@ where
     const IDENT: U = Q::IDENT;
     fn query(&self, x: &U, y: &U) -> U {
         self.base.query(x, y) % self.modulo.clone()
+    }
+}
+
+impl<Q, T, U> QueryWith<U> for Mod<Q, T>
+where
+    Mod<Q, T>: Query<U>,
+{
+    const IDENT: U = <Mod<Q, T> as Query<U>>::IDENT;
+    type A = NoAdditional;
+    fn additional(&self) -> Self::A {
+        NoAdditional
+    }
+    fn query_with(&self, x: &U, y: &U, _: (), _: ()) -> (U, ()) {
+        (self.query(x, y), ())
     }
 }
 
@@ -99,43 +178,90 @@ impl<T: Rem<Output = T> + HasAddIdent + Eq + Clone> Query<T> for GcdQuery {
 }
 
 #[derive(Clone, Debug)]
-pub struct PolynomialQuery<T> {
+pub struct PolynomialQuery<T, SQ = SumQuery, PQ = ProdQuery> {
     exponents: Vec<T>,
+    sum_query: SQ,
+    prod_query: PQ,
 }
 
-pub struct WithLeafCount<T> {
-    pub elem: T,
-    pub leaf_count: usize,
-}
+impl<SQ: QueryWith<T, A = NoAdditional>, PQ: QueryWith<T, A = NoAdditional>, T>
+    PolynomialQuery<T, SQ, PQ>
+{
+    pub fn new(exp: T, n: usize) -> Self
+    where
+        SQ: Default,
+        PQ: Default,
+    {
+        Self::with_query(exp, n, SQ::default(), PQ::default())
+    }
 
-impl<T> WithLeafCount<T> {
-    // const fn with_element(elem: T) -> Self {
-    //     Self {
-    //         elem,
-    //         leaf_count: 1,
-    //     }
-    // }
-
-    pub const fn ident(ident: T) -> Self {
-        Self {
-            elem: ident,
-            leaf_count: 0,
+    pub fn with_query(exp: T, n: usize, sum_query: SQ, prod_query: PQ) -> Self {
+        if n == 0 {
+            Self {
+                exponents: vec![],
+                prod_query,
+                sum_query,
+            }
+        } else if n == 1 {
+            Self {
+                exponents: vec![PQ::IDENT],
+                prod_query,
+                sum_query,
+            }
+        } else {
+            let mut exponents = Vec::with_capacity(n);
+            exponents.extend([PQ::IDENT, exp]);
+            for _ in 2..n {
+                let tmp = prod_query
+                    .query_with(exponents.last().unwrap(), &exponents[1], (), ())
+                    .0;
+                exponents.push(tmp);
+            }
+            Self {
+                exponents,
+                prod_query,
+                sum_query,
+            }
         }
     }
 }
 
-impl<T> Query<WithLeafCount<T>> for PolynomialQuery<T>
+#[derive(Clone, Copy, Debug, Default)]
+pub struct WithLen;
+
+impl<T> Additional<T> for WithLen {
+    type Ret = usize;
+    const IDENT: Self::Ret = 0;
+    fn additional(&self, slice: &[T]) -> Self::Ret {
+        slice.len()
+    }
+}
+
+impl<SQ, PQ, T> QueryWith<T> for PolynomialQuery<T, SQ, PQ>
 where
-    T: Clone + Add<Output = T> + Mul<Output = T> + HasAddIdent + HasMulIdent,
+    SQ: QueryWith<T, A = NoAdditional>,
+    PQ: QueryWith<T, A = NoAdditional>,
 {
-    const IDENT: WithLeafCount<T> = WithLeafCount::ident(<T as HasAddIdent>::IDENT);
-    fn query(&self, x: &WithLeafCount<T>, y: &WithLeafCount<T>) -> WithLeafCount<T> {
-        let WithLeafCount { elem: x, leaf_count: exp } = x;
-        let WithLeafCount { elem: y, leaf_count: exp2} = y;
-        WithLeafCount {
-            elem: x.clone() + y.clone() * self.exponents[*exp].clone(),
-            leaf_count: exp + exp2,
-        }
+    const IDENT: T = SQ::IDENT;
+    type A = WithLen;
+    fn additional(&self) -> Self::A {
+        WithLen
+    }
+    fn query_with(&self, x: &T, y: &T, degree_x: usize, degree_y: usize) -> (T, usize) {
+        (
+            self.sum_query
+                .query_with(
+                    x,
+                    &self
+                        .prod_query
+                        .query_with(y, &self.exponents[degree_x], (), ())
+                        .0,
+                    (),
+                    (),
+                )
+                .0,
+            degree_x + degree_y,
+        )
     }
 }
 
@@ -165,5 +291,41 @@ mod tests {
         assert_eq!(GcdQuery.query(&10, &3), 1);
         assert_eq!(GcdQuery.query(&0, &4), 4);
         assert_eq!(GcdQuery.query(&4, &0), 4);
+    }
+
+    #[test]
+    fn test_polynomial_query() {
+        let query = PolynomialQuery::with_query(3, 8, SumQuery, ProdQuery);
+        assert_eq!(&query.exponents, &[1, 3, 9, 27, 81, 243, 729, 2187]);
+
+        // 1 * 3^0 + 2 * 3^1
+        assert_eq!(query.query_with(&1, &2, 1, 1), (7, 2));
+        // 1 * 3^0 + 2 * 3^1 - 2 * 3^2
+        assert_eq!(query.query_with(&7, &-2, 2, 1), (-11, 3));
+        // 2 * 3^0 - 2 * 3^1
+        assert_eq!(query.query_with(&2, &-2, 1, 1), (-4, 2));
+        // 1 * 3^0 + 2 * 3^1 - 2 * 3^2
+        assert_eq!(query.query_with(&1, &-4, 1, 2), (-11, 3));
+
+        let result = [1i32, 2, 3, 4, 5, 4]
+            .into_iter()
+            .map(|x| (x, 1))
+            .reduce(|acc, x| query.query_with(&acc.0, &x.0, acc.1, x.1))
+            .unwrap();
+        assert_eq!(result, (1519, 6));
+
+        let query =
+            PolynomialQuery::with_query(3, 8, Mod::new(SumQuery, 221), Mod::new(ProdQuery, 221));
+        assert_eq!(
+            &query.exponents,
+            &[1, 3, 9, 27, 81, 243 % 221, 729 % 221, 2187 % 221]
+        );
+
+        let result = [1i32, 2, 3, 4, 5, 4]
+            .into_iter()
+            .map(|x| (x, 1))
+            .reduce(|acc, x| query.query_with(&acc.0, &x.0, acc.1, x.1))
+            .unwrap();
+        assert_eq!(result, (1519 % 221, 6));
     }
 }

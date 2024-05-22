@@ -1,5 +1,7 @@
-use segtree::{query::{Mod, ProdQuery}, SegTree};
-
+use segtree::{
+    query::{Mod, ProdQuery},
+    SegTree,
+};
 
 #[test]
 fn mod_prod_query() {

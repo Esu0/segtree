@@ -3,12 +3,12 @@ use std::{cell::RefCell, hint::black_box, iter};
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use segtree::{
-    query::{MinQuery, Query},
+    query::{MinQuery, QueryWith},
     SegTree,
 };
 
 /// ランダムなセグメント木を生成する
-fn get_segtree<Q: Query<i64>>(n: usize, query: Q) -> SegTree<Q, i64> {
+fn get_segtree<Q: QueryWith<i64>>(n: usize, query: Q) -> SegTree<Q, i64> {
     thread_local! {
         static RNG: RefCell<StdRng> = RefCell::new(StdRng::seed_from_u64(100));
     }
@@ -16,7 +16,9 @@ fn get_segtree<Q: Query<i64>>(n: usize, query: Q) -> SegTree<Q, i64> {
         let mut rng = rng.borrow_mut();
         SegTree::from_iter_query(
             query,
-            black_box(iter::repeat_with(|| rng.gen_range(-1_000_000_000i64..=1_000_000_000)).take(n)),
+            black_box(
+                iter::repeat_with(|| rng.gen_range(-1_000_000_000i64..=1_000_000_000)).take(n),
+            ),
         )
     })
 }
