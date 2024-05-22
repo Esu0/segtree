@@ -155,8 +155,8 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
                     .query_with(
                         &*ptr.add(i * 2),
                         &*ptr.add(i * 2 + 1),
-                        additional.additional(&*slice1),
-                        additional.additional(&*slice2),
+                        additional.extract(&*slice1),
+                        additional.extract(&*slice2),
                     )
                     .0,
             );
@@ -221,7 +221,7 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
                         &self.tree[l],
                         l_query_a,
                         self.additional
-                            .additional(self.tree.get_unchecked(l_range_start..l_range_end)),
+                            .extract(self.tree.get_unchecked(l_range_start..l_range_end)),
                     )
                 };
                 l_query = ret.0;
@@ -237,7 +237,7 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
                         &self.tree[r],
                         &r_query,
                         self.additional
-                            .additional(self.tree.get_unchecked(r_range_start..r_range_end)),
+                            .extract(self.tree.get_unchecked(r_range_start..r_range_end)),
                         r_query_a,
                     )
                 };
@@ -254,7 +254,7 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
                 &l_query,
                 &self.tree[l],
                 l_query_a,
-                self.additional.additional(
+                self.additional.extract(
                     self.tree
                         .get_unchecked(l_range_start..l_range_start + arr_len),
                 ),
@@ -270,7 +270,7 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
                     &self.tree[l + 1],
                     a.1,
                     self.additional
-                        .additional(self.tree.get_unchecked(r_range_end - arr_len..r_range_end)),
+                        .extract(self.tree.get_unchecked(r_range_end - arr_len..r_range_end)),
                 )
             };
             self.query.query_with(&b.0, &r_query, b.1, r_query_a).0
@@ -293,18 +293,22 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
         while i > 1 {
             i >>= 1;
             range_start &= !range_len;
-            self.tree[i] = self
-                .query
-                .query_with(
-                    &self.tree[i * 2],
-                    &self.tree[i * 2 + 1],
-                    self.additional
-                        .additional(&self.tree[range_start..range_start + range_len]),
-                    self.additional.additional(
-                        &self.tree[range_start + range_len..range_start + range_len * 2],
-                    ),
-                )
-                .0;
+            unsafe {
+                self.tree[i] =
+                    self.query
+                        .query_with(
+                            self.tree.get_unchecked(i * 2),
+                            self.tree.get_unchecked(i * 2 + 1),
+                            self.additional.extract(
+                                self.tree
+                                    .get_unchecked(range_start..range_start + range_len),
+                            ),
+                            self.additional.extract(self.tree.get_unchecked(
+                                range_start + range_len..range_start + range_len * 2,
+                            )),
+                        )
+                        .0;
+            }
             range_len <<= 1;
         }
     }
@@ -332,24 +336,23 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
         let mut l_query_a = Q::A::IDENT;
         loop {
             if l & 1 == 1 {
-                let next_query = self.query.query_with(
+                let next_query = unsafe {self.query.query_with(
                     &l_query,
                     &self.tree[l],
                     l_query_a.clone(),
                     self.additional
-                        .additional(&self.tree[l_range_start..l_range_start + arr_len]),
-                );
+                        .extract(self.tree.get_unchecked(l_range_start..l_range_start + arr_len)),
+                )};
                 let next_l = l + 1;
                 if pred(&next_query.0) {
                     if next_l.is_power_of_two() {
                         return self.len();
-                    } else {
-                        l_query = next_query.0;
-                        l_query_a = next_query.1;
                     }
                 } else {
                     break;
                 }
+                l_query = next_query.0;
+                l_query_a = next_query.1;
                 l = next_l;
                 l_range_start += arr_len;
             }
@@ -363,17 +366,18 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
             };
             l = next_l;
             arr_len >>= 1;
-            let next_query = self.query.query_with(
+            let next_query = unsafe {self.query.query_with(
                 &l_query,
                 val,
                 l_query_a.clone(),
                 self.additional
-                    .additional(&self.tree[l_range_start..l_range_start + arr_len]),
-            );
+                    .extract(self.tree.get_unchecked(l_range_start..l_range_start + arr_len)),
+            )};
             if pred(&next_query.0) {
                 l_query = next_query.0;
                 l_query_a = next_query.1;
                 l += 1;
+                l_range_start += arr_len;
             }
         }
     }
@@ -652,6 +656,17 @@ mod tests {
         segtree.partition_point(9, |v| *v <= 20);
     }
 
+    fn polynomial_slow(x: u64, c: &[u64], m: u64) -> u64 {
+        let mut e = 1;
+        c.iter()
+            .map(|&c| {
+                let tmp = e * x % m;
+                c * std::mem::replace(&mut e, tmp) % m
+            })
+            .sum::<u64>()
+            % m
+    }
+
     #[test]
     fn polynomial_query_test() {
         let segtree = SegTree::from_iter_query(
@@ -666,17 +681,6 @@ mod tests {
         assert_eq!(segtree.query(1..4), 2 + 3 * 7 + 4 * 7 * 7);
         assert_eq!(segtree.query(1..5), 2 + 3 * 7 + 4 * 7 * 7 + 5 * 7 * 7 * 7);
         assert_eq!(segtree.query(3..6), 4 + 5 * 7 + 6 * 7 * 7);
-
-        fn polynomial_slow(x: u64, c: &[u64], m: u64) -> u64 {
-            let mut e = 1;
-            c.iter()
-                .map(|&c| {
-                    let tmp = e * x % m;
-                    c * std::mem::replace(&mut e, tmp) % m
-                })
-                .sum::<u64>()
-                % m
-        }
 
         let mut rng = StdRng::seed_from_u64(3940);
         let data = (0..1000)
@@ -701,5 +705,42 @@ mod tests {
         for [l, r] in range_iter {
             assert_eq!(segtree.query(l..r), polynomial_slow(x, &data[l..r], m,));
         }
+    }
+
+    #[test]
+    fn polynomial_query_update() {
+        let mut segtree = SegTree::from_iter_query(
+            PolynomialQuery::with_query(3, 8, Mod::new(SumQuery, 100), Mod::new(ProdQuery, 100)),
+            [4, 2, 3, 2, 5, 4],
+        );
+        assert_eq!(
+            &segtree.tree[1..],
+            &[68, 91, 17, 10, 9, 17, 0, 4, 2, 3, 2, 5, 4, 0, 0]
+        );
+        segtree.update(2, 4);
+        assert_eq!(
+            &segtree.tree[1..],
+            &[77, 0, 17, 10, 10, 17, 0, 4, 2, 4, 2, 5, 4, 0, 0]
+        );
+        segtree.update(5, 1);
+        assert_eq!(
+            &segtree.tree[1..],
+            &[48, 0, 8, 10, 10, 8, 0, 4, 2, 4, 2, 5, 1, 0, 0]
+        );
+    }
+
+    #[test]
+    fn polynomial_query_partition_point() {
+        let segtree = SegTree::from_iter_query(
+            PolynomialQuery::<_, SumQuery, ProdQuery>::new(3, 8),
+            [4, 2, 3, 2, 5, 4],
+        );
+        assert_eq!(segtree.partition_point(0, |&v| v < 91), 3);
+        assert_eq!(segtree.partition_point(0, |&v| v < 100), 4);
+        assert_eq!(segtree.partition_point(1, |&v| v < 100), 4);
+        assert_eq!(segtree.partition_point(1, |&v| v < 164), 4);
+        assert_eq!(segtree.partition_point(1, |&v| v <= 164), 5);
+        assert_eq!(segtree.partition_point(2, |_| true), 8);
+        assert_eq!(segtree.partition_point(3, |_| false), 3);
     }
 }

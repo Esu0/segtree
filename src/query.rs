@@ -15,7 +15,7 @@ pub trait Query<T> {
 pub trait Additional<T> {
     type Ret;
     const IDENT: Self::Ret;
-    fn additional(&self, slice: &[T]) -> Self::Ret;
+    fn extract(&self, slice: &[T]) -> Self::Ret;
 }
 
 pub trait QueryWith<T> {
@@ -37,7 +37,7 @@ pub struct NoAdditional;
 impl<T> Additional<T> for NoAdditional {
     type Ret = ();
     const IDENT: Self::Ret = ();
-    fn additional(&self, _: &[T]) {}
+    fn extract(&self, _: &[T]) {}
 }
 
 // impl<Q, T> QueryWith<T> for Q
@@ -232,7 +232,7 @@ pub struct WithLen;
 impl<T> Additional<T> for WithLen {
     type Ret = usize;
     const IDENT: Self::Ret = 0;
-    fn additional(&self, slice: &[T]) -> Self::Ret {
+    fn extract(&self, slice: &[T]) -> Self::Ret {
         slice.len()
     }
 }
