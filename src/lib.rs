@@ -1,7 +1,11 @@
 pub mod query;
 
 use std::{
-    alloc::Layout, borrow::Borrow, cmp::Ordering, mem::MaybeUninit, ops::{Bound, RangeBounds}
+    alloc::Layout,
+    borrow::Borrow,
+    cmp::Ordering,
+    mem::MaybeUninit,
+    ops::{Bound, RangeBounds},
 };
 
 use query::{Additional, MinQuery, Query, QueryWith};
@@ -211,13 +215,15 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
         while r - l > 2 {
             if l & 1 == 1 {
                 let l_range_end = l_range_start + arr_len;
-                let ret = unsafe { self.query.query_with(
-                    &l_query,
-                    &self.tree[l],
-                    l_query_a,
-                    self.additional
-                        .additional(self.tree.get_unchecked(l_range_start..l_range_end)),
-                )};
+                let ret = unsafe {
+                    self.query.query_with(
+                        &l_query,
+                        &self.tree[l],
+                        l_query_a,
+                        self.additional
+                            .additional(self.tree.get_unchecked(l_range_start..l_range_end)),
+                    )
+                };
                 l_query = ret.0;
                 l_query_a = ret.1;
                 l += 1;
@@ -226,13 +232,15 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
             if r & 1 == 1 {
                 r -= 1;
                 let r_range_start = r_range_end - arr_len;
-                let ret = unsafe {self.query.query_with(
-                    &self.tree[r],
-                    &r_query,
-                    self.additional
-                        .additional(self.tree.get_unchecked(r_range_start..r_range_end)),
-                    r_query_a,
-                )};
+                let ret = unsafe {
+                    self.query.query_with(
+                        &self.tree[r],
+                        &r_query,
+                        self.additional
+                            .additional(self.tree.get_unchecked(r_range_start..r_range_end)),
+                        r_query_a,
+                    )
+                };
                 r_query = ret.0;
                 r_query_a = ret.1;
                 r_range_end = r_range_start;
@@ -241,24 +249,30 @@ impl<T, Q: QueryWith<T>> SegTree<Q, T> {
             l >>= 1;
             r >>= 1;
         }
-        let a = unsafe { self.query.query_with(
-            &l_query,
-            &self.tree[l],
-            l_query_a,
-            self.additional
-                .additional(self.tree.get_unchecked(l_range_start..l_range_start + arr_len)),
-        )};
+        let a = unsafe {
+            self.query.query_with(
+                &l_query,
+                &self.tree[l],
+                l_query_a,
+                self.additional.additional(
+                    self.tree
+                        .get_unchecked(l_range_start..l_range_start + arr_len),
+                ),
+            )
+        };
         if r - l == 2 {
             // [&self.tree[l], &self.tree[l + 1], &r_query]
             //     .into_iter()
             //     .fold(l_query, |acc, x| self.query.query(&acc, x))
-            let b = unsafe {self.query.query_with(
-                &a.0,
-                &self.tree[l + 1],
-                a.1,
-                self.additional
-                    .additional(self.tree.get_unchecked(r_range_end - arr_len..r_range_end)),
-            )};
+            let b = unsafe {
+                self.query.query_with(
+                    &a.0,
+                    &self.tree[l + 1],
+                    a.1,
+                    self.additional
+                        .additional(self.tree.get_unchecked(r_range_end - arr_len..r_range_end)),
+                )
+            };
             self.query.query_with(&b.0, &r_query, b.1, r_query_a).0
         } else {
             // [&self.tree[l], &r_query]
@@ -660,7 +674,8 @@ mod tests {
                     let tmp = e * x % m;
                     c * std::mem::replace(&mut e, tmp) % m
                 })
-                .sum::<u64>() % m
+                .sum::<u64>()
+                % m
         }
 
         let mut rng = StdRng::seed_from_u64(3940);
@@ -678,21 +693,13 @@ mod tests {
             ),
             data.iter().copied(),
         );
-        let range_iter = (0..200)
-            .map(|_| {
-                let l = rng.gen_range(0..data.len());
-                let r = rng.gen_range(l + 1..=data.len());
-                [l, r]
-            });
+        let range_iter = (0..200).map(|_| {
+            let l = rng.gen_range(0..data.len());
+            let r = rng.gen_range(l + 1..=data.len());
+            [l, r]
+        });
         for [l, r] in range_iter {
-            assert_eq!(
-                segtree.query(l..r),
-                polynomial_slow(
-                    x,
-                    &data[l..r],
-                    m,
-                )
-            );
+            assert_eq!(segtree.query(l..r), polynomial_slow(x, &data[l..r], m,));
         }
     }
 }
